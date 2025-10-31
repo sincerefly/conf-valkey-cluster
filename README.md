@@ -43,18 +43,38 @@ For other versions and variants, see: [Docker Hub - valkey/valkey](https://hub.d
 
 ### Manual Start & Stop
 
+#### Using Helper Scripts (Recommended)
+
+The `start.sh` and `stop.sh` scripts support the same layered simplification as `init.sh`:
+
+```bash
+# Using default version
+./start.sh
+./stop.sh
+
+# Using simplified version format
+VALKEY_IMAGE=8.0 ./start.sh              # → valkey/valkey:8.0
+VALKEY_IMAGE=8.0-alpine ./start.sh       # → valkey/valkey:8.0-alpine
+VALKEY_IMAGE=9.0 ./start.sh              # → valkey/valkey:9.0
+./stop.sh
+
+# Full image name is also supported
+VALKEY_IMAGE=valkey/valkey:8.0-alpine ./start.sh
+./stop.sh
+```
+
+#### Using Docker Compose Directly
+
+If you use `docker compose` directly, you must provide the full image name:
+
 ```bash
 # Using default version
 docker compose up -d
 docker compose down
 
-# Or specify a version (simplified or full format)
-VALKEY_IMAGE=8.0 docker compose up -d
-VALKEY_IMAGE=8.0-alpine docker compose up -d
-VALKEY_IMAGE=8.0 docker compose down
-
-# Full format is also supported
+# Must use full image name format
 VALKEY_IMAGE=valkey/valkey:8.0-alpine docker compose up -d
+VALKEY_IMAGE=valkey/valkey:8.0-alpine docker compose down
 ```
 
 ### Connect
@@ -81,6 +101,8 @@ PONG
 
 ### Multi-Version Testing Script
 
+> **Note:** The test script will automatically clean data directories (`./data/*`) between version tests by default. This ensures a clean environment for each test. To preserve data during testing, set `CLEANUP_DATA=false`.
+
 Use `test.sh` to automatically test multiple Valkey versions:
 
 ```bash
@@ -94,27 +116,3 @@ The script will:
 2. Print version information
 3. Check cluster health
 4. Clean up before testing the next version
-
-### Customize Test Versions
-
-Edit `TEST_VERSIONS` in `test.sh` to test specific versions:
-
-```bash
-TEST_VERSIONS=("7.2-alpine" "8.0-alpine" "8.1-alpine" "9.0-alpine")
-```
-
-### Test Options
-
-```bash
-# By default, data directories are cleaned between tests
-./test.sh
-
-# Skip data directory cleanup (if you want to preserve data)
-CLEANUP_DATA=false ./test.sh
-
-# Adjust wait time between deployment and health check (default: 10s)
-TEST_WAIT_TIME=15 ./test.sh
-
-# Combine options
-CLEANUP_DATA=false TEST_WAIT_TIME=20 ./test.sh
-```
