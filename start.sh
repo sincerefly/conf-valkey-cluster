@@ -10,8 +10,12 @@ source "${SCRIPT_DIR}/lib.sh"
 # Normalize image name
 normalize_valkey_image
 
+# Generate COMPOSE_PROJECT_NAME based on VALKEY_IMAGE
+generate_compose_project_name
+
 # Display version info
 echo "Starting Valkey cluster with image: $VALKEY_IMAGE"
+echo "Compose project name: $COMPOSE_PROJECT_NAME"
 
 # Start containers
 docker compose up -d

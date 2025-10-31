@@ -6,7 +6,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 # Configuration variables
-COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-valkey-cluster}
 CLUSTER_PORTS=(7000 7001 7002 7003 7004 7005)
 MAX_ATTEMPTS=30
 RETRY_DELAY=2
@@ -62,8 +61,14 @@ check_cluster_health() {
 main() {
     log "Starting Valkey Cluster initialization..."
     
+    # Normalize image name first
     normalize_valkey_image
+    
+    # Generate COMPOSE_PROJECT_NAME based on VALKEY_IMAGE
+    generate_compose_project_name
+    
     log "Using Valkey image: $VALKEY_IMAGE"
+    log "Compose project name: $COMPOSE_PROJECT_NAME"
     
     check_dependencies
     
