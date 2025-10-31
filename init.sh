@@ -46,7 +46,7 @@ wait_for_node() {
 
 check_cluster_health() {
     log "Checking cluster health..."
-    if docker compose exec -T valkey-7000 valkey-cli cluster info | grep -q "cluster_state:ok"; then
+    if docker compose exec -T valkey-7000 valkey-cli -p 7000 cluster info | grep -q "cluster_state:ok"; then
         log "Cluster is healthy"
         return 0
     else
@@ -85,7 +85,7 @@ main() {
     if check_cluster_health; then
         log "Valkey cluster initialized successfully!"
         log "Cluster nodes:"
-        docker compose exec -T valkey-7000 valkey-cli cluster nodes
+        docker compose exec -T valkey-7000 valkey-cli -p 7000 cluster nodes
     else
         log "Cluster initialized with warnings. Please check cluster status."
         exit 1
