@@ -1,11 +1,34 @@
 #!/bin/bash
 set -e
 
-# 配置变量
-COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-valkey-cluster-72}
+# Configuration variables
+COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-valkey-cluster}
 CLUSTER_PORTS=(7000 7001 7002 7003 7004 7005)
 MAX_ATTEMPTS=30
 RETRY_DELAY=2
+
+# Normalize VALKEY_IMAGE environment variable
+# Supports layered simplification strategy:
+# - If empty: use default valkey/valkey:7.2-alpine
+# - If contains '/': treat as full image name, use as-is
+# - If no '/': treat as version tag, add valkey/valkey: prefix
+# Examples:
+#   8.0              → valkey/valkey:8.0
+#   8.0-alpine       → valkey/valkey:8.0-alpine
+#   7.2              → valkey/valkey:7.2
+#   valkey/valkey:8.0-alpine → valkey/valkey:8.0-alpine (unchanged)
+normalize_valkey_image() {
+    if [ -z "$VALKEY_IMAGE" ]; then
+        # Use default value if not set
+        export VALKEY_IMAGE="valkey/valkey:7.2-alpine"
+    elif [[ "$VALKEY_IMAGE" == *"/"* ]]; then
+        # Contains '/', treat as full image name, use as-is
+        export VALKEY_IMAGE="$VALKEY_IMAGE"
+    else
+        # No '/', treat as version tag, add valkey/valkey: prefix
+        export VALKEY_IMAGE="valkey/valkey:$VALKEY_IMAGE"
+    fi
+}
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -58,6 +81,9 @@ check_cluster_health() {
 main() {
     log "Starting Valkey Cluster initialization..."
     
+    normalize_valkey_image
+    log "Using Valkey image: $VALKEY_IMAGE"
+    
     check_dependencies
     
     log "Starting containers..."
@@ -92,5 +118,5 @@ main() {
     fi
 }
 
-# 运行主函数
+# Run main function
 main "$@"

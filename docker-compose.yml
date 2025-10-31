@@ -1,6 +1,6 @@
 services:
   valkey-7000:
-    image: valkey/valkey:7.2-alpine
+    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
     container_name: valkey-7000
     command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
     ports:
@@ -11,7 +11,7 @@ services:
       - ./data/7000:/data
 
   valkey-7001:
-    image: valkey/valkey:7.2-alpine
+    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
     container_name: valkey-7001
     command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
     ports:
@@ -22,7 +22,7 @@ services:
       - ./data/7001:/data
 
   valkey-7002:
-    image: valkey/valkey:7.2-alpine
+    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
     container_name: valkey-7002
     command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
     ports:
@@ -33,7 +33,7 @@ services:
       - ./data/7002:/data
 
   valkey-7003:
-    image: valkey/valkey:7.2-alpine
+    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
     container_name: valkey-7003
     command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
     ports:
@@ -44,7 +44,7 @@ services:
       - ./data/7003:/data
 
   valkey-7004:
-    image: valkey/valkey:7.2-alpine
+    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
     container_name: valkey-7004
     command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
     ports:
@@ -55,7 +55,7 @@ services:
       - ./data/7004:/data
 
   valkey-7005:
-    image: valkey/valkey:7.2-alpine
+    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
     container_name: valkey-7005
     command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
     ports:
