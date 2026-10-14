@@ -1,118 +1,83 @@
 # conf-valkey-cluster
 
-Docker Compose configuration for Valkey cluster (Multi-Version Support)
+[中文](README.zh.md)
 
-**Testing with OrbStack & macOS**
+A six-node Valkey Cluster for local development on **macOS + OrbStack**: three primaries, each with one replica. Uses host networking and loopback addresses. Other environments are untested; this is not a production deployment.
 
-## Usage
+## Quick start
 
-### Initialize Cluster
+Requires running OrbStack, Docker Compose, and Python 3.10+.
 
 ```bash
-# Using default Valkey 7.2-alpine
-$ chmod +x ./init.sh
+git clone https://github.com/sincerefly/conf-valkey-cluster.git
+cd conf-valkey-cluster
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+chmod +x init.sh start.sh stop.sh test.sh
 
-$ ./init.sh
+./init.sh       # Create the cluster, or verify an existing one
+./stop.sh       # Stop containers; keep data
+./start.sh      # Restart an initialized cluster
 ```
 
-#### Other Valkey Versions
+Scripts use `.venv/bin/python` automatically; activation is not required. Use the scripts rather than `docker compose up` to retain startup checks.
 
-The script supports layered simplification for `VALKEY_IMAGE`:
+| Setting | Default |
+| --- | --- |
+| Image | `valkey/valkey:7.2.14-alpine` |
+| Client ports | `7100–7105` |
+| Cluster bus ports | `17100–17105` |
+| Data | `./data/local/node-0` through `node-5` (AOF enabled) |
+| Compose project | `valkey-cluster` |
+
+## Connect and check
+
+Run from the repository directory:
 
 ```bash
-# Simplified: Only specify version tag (auto-adds valkey/valkey: prefix)
-$ VALKEY_IMAGE=8.0 ./init.sh              # → valkey/valkey:8.0
-$ VALKEY_IMAGE=8.0-alpine ./init.sh       # → valkey/valkey:8.0-alpine
-$ VALKEY_IMAGE=8.1-alpine ./init.sh       # → valkey/valkey:8.1-alpine
-$ VALKEY_IMAGE=9.0 ./init.sh              # → valkey/valkey:9.0
-$ VALKEY_IMAGE=7.2 ./init.sh              # → valkey/valkey:7.2
+# Read-only health check across all six nodes
+.venv/bin/python redis_cluster_test.py --health
 
-# Full image name is also supported (unchanged)
-$ VALKEY_IMAGE=valkey/valkey:8.0-alpine ./init.sh
+# Read/write check across all three primaries
+.venv/bin/python redis_cluster_test.py
+
+# Optional, if redis-cli is installed
+redis-cli -c -h 127.0.0.1 -p 7100
+
+# Status and logs
+docker compose ps
+docker compose logs --tail=100
 ```
 
-#### Supported Versions
+Read/write checks use unique temporary keys, delete them afterward, and set a 60-second TTL. Checks return nonzero on failure; use `--timeout 30` to change the default 60-second deadline per phase. A failed startup check may leave containers running—inspect the logs before retrying.
 
-- `valkey/valkey:7.2-alpine` (default)
-- `valkey/valkey:8.0-alpine`
-- `valkey/valkey:8.1-alpine`
-- `valkey/valkey:9.0-alpine`
+## Custom configuration
 
-For other versions and variants, see: [Docker Hub - valkey/valkey](https://hub.docker.com/r/valkey/valkey/)
-
-
-### Manual Start & Stop
-
-#### Using Helper Scripts (Recommended)
-
-The `start.sh` and `stop.sh` scripts support the same layered simplification as `init.sh`:
+Export overrides in your shell, not in `.env`. For a separate cluster:
 
 ```bash
-# Using default version
-./start.sh
+export VALKEY_IMAGE=valkey/valkey:9.1.2-alpine
+export VALKEY_BASE_PORT=7200
+export VALKEY_DATA_DIR="$PWD/data/valkey-9.1.2"
+export COMPOSE_PROJECT_NAME=valkey-cluster-9-1-2
+
+./init.sh
+.venv/bin/python redis_cluster_test.py --health
 ./stop.sh
 
-# Using simplified version format
-VALKEY_IMAGE=8.0 ./start.sh              # → valkey/valkey:8.0
-VALKEY_IMAGE=8.0-alpine ./start.sh       # → valkey/valkey:8.0-alpine
-VALKEY_IMAGE=9.0 ./start.sh              # → valkey/valkey:9.0
-./stop.sh
-
-# Full image name is also supported
-VALKEY_IMAGE=valkey/valkey:8.0-alpine ./start.sh
-./stop.sh
+unset VALKEY_IMAGE VALKEY_BASE_PORT VALKEY_DATA_DIR COMPOSE_PROJECT_NAME
 ```
 
-#### Using Docker Compose Directly
+The base port selects six consecutive client ports; bus ports are client ports + 10000. Keep the same environment for later checks and start/stop commands. Separate clusters need distinct projects, ports, and data directories. Scripts accept short image tags; raw Compose commands require full image names. Custom port calculation is handled by the scripts, not raw Compose.
 
-If you use `docker compose` directly, you must provide the full image name:
+**Keep existing data safe:** changing the image or base port requires a new data directory once persistent files exist. Back up before migrating; scripts do not upgrade, reset, or migrate data. Existing `data/7000`–`data/7005` directories and the old deployment are not managed by the new defaults.
+
+## Tests
 
 ```bash
-# Using default version
-docker compose up -d
-docker compose down
-
-# Must use full image name format
-VALKEY_IMAGE=valkey/valkey:8.0-alpine docker compose up -d
-VALKEY_IMAGE=valkey/valkey:8.0-alpine docker compose down
+.venv/bin/python -m unittest discover -s tests -v
+./test.sh                          # Test 7.2.14-alpine and 9.1.2-alpine
+./test.sh 9.1.2-alpine              # Test a specific version
 ```
 
-### Connect
-
-```bash
-$ docker inspect valkey-7000 | grep IPAddress
-"Secondary**IPAddress**es": null,
-"**IPAddress**": "",
-	"**IPAddress**": "192.168.97.2",
-         
-                    
-$ redis-cli -c -h 192.168.97.2 -p 7000 ping
-PONG
-```
-
-Or using local DNS (requires OrbStack)
-
-```bash
-$ redis-cli -c -h valkey-7000.valkey-cluster.orb.local -p 7000 ping
-PONG
-```
-
-## Testing
-
-### Multi-Version Testing Script
-
-> **Note:** The test script will automatically clean data directories (`./data/*`) between version tests by default. This ensures a clean environment for each test. To preserve data during testing, set `CLEANUP_DATA=false`.
-
-Use `test.sh` to automatically test multiple Valkey versions:
-
-```bash
-# Test all configured versions sequentially
-$ chmod +x ./test.sh
-$ ./test.sh
-```
-
-The script will:
-1. Deploy each version using `init.sh`
-2. Print version information
-3. Check cluster health
-4. Clean up before testing the next version
+Integration tests use a temporary project and data directory on ports `27100–27105` and `37100–37105`. Override the base with `VALKEY_TEST_BASE_PORT` if needed. They check repeated initialization, host read/write access, and persistence after restart. Cleanup only removes test data after containers stop successfully; cleanup failure preserves it and fails the test. Both default versions have been tested on OrbStack; this does not verify upgrades of existing data.

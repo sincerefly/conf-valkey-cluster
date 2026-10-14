@@ -1,68 +1,102 @@
 #!/bin/bash
-# Common library functions for Valkey cluster scripts
+# Shared setup for the local six-node OrbStack cluster (macOS Bash 3.2 compatible).
 
-# Normalize VALKEY_IMAGE environment variable
-# Supports layered simplification strategy:
-# - If empty: use default valkey/valkey:7.2-alpine
-# - If contains '/': treat as full image name, use as-is
-# - If no '/': treat as version tag, add valkey/valkey: prefix
-# Examples:
-#   8.0              → valkey/valkey:8.0
-#   8.0-alpine       → valkey/valkey:8.0-alpine
-#   7.2              → valkey/valkey:7.2
-#   valkey/valkey:8.0-alpine → valkey/valkey:8.0-alpine (unchanged)
-normalize_valkey_image() {
-    if [ -z "$VALKEY_IMAGE" ]; then
-        # Use default value if not set
-        export VALKEY_IMAGE="valkey/valkey:7.2-alpine"
-    elif [[ "$VALKEY_IMAGE" == *"/"* ]]; then
-        # Contains '/', treat as full image name, use as-is
-        export VALKEY_IMAGE="$VALKEY_IMAGE"
-    else
-        # No '/', treat as version tag, add valkey/valkey: prefix
-        export VALKEY_IMAGE="valkey/valkey:$VALKEY_IMAGE"
+setup() {
+    export VALKEY_IMAGE="${VALKEY_IMAGE:-valkey/valkey:7.2.14-alpine}"
+    if [[ "$VALKEY_IMAGE" != */* ]]; then
+        VALKEY_IMAGE="valkey/valkey:$VALKEY_IMAGE"
+    fi
+    export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-valkey-cluster}"
+    export VALKEY_BASE_PORT="${VALKEY_BASE_PORT:-7100}"
+    if [[ ! "$VALKEY_BASE_PORT" =~ ^[1-9][0-9]{3,4}$ ]] ||
+        (( VALKEY_BASE_PORT > 55530 )); then
+        echo "ERROR: VALKEY_BASE_PORT must be between 1000 and 55530" >&2
+        return 1
+    fi
+    export VALKEY_DATA_DIR="${VALKEY_DATA_DIR:-$SCRIPT_DIR/data/local}"
+    if [[ "$VALKEY_DATA_DIR" != /* ]]; then
+        VALKEY_DATA_DIR="$SCRIPT_DIR/$VALKEY_DATA_DIR"
+    fi
+    local index
+    for index in 0 1 2 3 4 5; do
+        export "PORT_$index=$((VALKEY_BASE_PORT + index))"
+        export "BUS_PORT_$index=$((VALKEY_BASE_PORT + index + 10000))"
+    done
+    if [ -z "${PYTHON:-}" ]; then
+        if [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+            PYTHON="$SCRIPT_DIR/.venv/bin/python"
+        else
+            PYTHON=python3
+        fi
     fi
 }
 
-# Generate COMPOSE_PROJECT_NAME from VALKEY_IMAGE
-# Extracts version number and converts to format: valkey-cluster-XX
-# Examples:
-#   valkey/valkey:8.0-alpine → valkey-cluster-80
-#   valkey/valkey:7.2-alpine → valkey-cluster-72
-#   valkey/valkey:9.0        → valkey-cluster-90
-generate_compose_project_name() {
-    if [ -z "$VALKEY_IMAGE" ]; then
-        export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-valkey-cluster}"
-        return
+compose() {
+    docker compose --project-directory "$SCRIPT_DIR" --env-file "$SCRIPT_DIR/.env" \
+        -f "$SCRIPT_DIR/docker-compose.yml" -p "$COMPOSE_PROJECT_NAME" "$@"
+}
+
+check_dependencies() {
+    docker compose version >/dev/null
+    docker info >/dev/null
+    "$PYTHON" -c 'import redis' || {
+        echo "ERROR: install Python dependencies: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt" >&2
+        return 1
+    }
+}
+
+client() {
+    "$PYTHON" "$SCRIPT_DIR/redis_cluster_test.py" --base-port "$VALKEY_BASE_PORT" "$@"
+}
+
+start_nodes() {
+    check_dependencies
+    local index running
+    local free_ports=()
+    for index in 0 1 2 3 4 5; do
+        running=$(compose ps --status running -q "valkey-$index")
+        if [ -z "$running" ]; then
+            free_ports+=("$((VALKEY_BASE_PORT + index))" "$((VALKEY_BASE_PORT + index + 10000))")
+        fi
+    done
+    if [ "${#free_ports[@]}" -gt 0 ]; then
+        client --ports-free "${free_ports[@]}"
     fi
-    
-    # Extract version tag from VALKEY_IMAGE
-    # Handle both formats: valkey/valkey:8.0-alpine and 8.0-alpine
-    local version_tag
-    if [[ "$VALKEY_IMAGE" == *":"* ]]; then
-        # Full image format: extract part after ':'
-        version_tag="${VALKEY_IMAGE##*:}"
+
+    # Persisted cluster addresses must not be reused with different ports or images.
+    local marker="$VALKEY_DATA_DIR/.cluster-settings" previous existing=""
+    if [ -d "$VALKEY_DATA_DIR" ]; then
+        existing=$(find "$VALKEY_DATA_DIR" -mindepth 1 ! -type d ! -path "$marker" -print -quit)
+    fi
+    if [ -n "$existing" ]; then
+        if [ ! -f "$marker" ]; then
+            echo "ERROR: refusing untracked existing data in $VALKEY_DATA_DIR; choose a new VALKEY_DATA_DIR" >&2
+            return 1
+        fi
+        IFS= read -r previous < "$marker"
+        if [ "$previous" != "$VALKEY_IMAGE $VALKEY_BASE_PORT" ]; then
+            echo "ERROR: $VALKEY_DATA_DIR belongs to $previous; use a new VALKEY_DATA_DIR when changing image or ports" >&2
+            return 1
+        fi
     else
-        # Already just the tag
-        version_tag="$VALKEY_IMAGE"
+        # A failed pull can leave only a marker and empty directories; there is no data to protect.
+        mkdir -p "$VALKEY_DATA_DIR"
+        printf '%s %s\n' "$VALKEY_IMAGE" "$VALKEY_BASE_PORT" > "$marker"
     fi
-    
-    # Extract major.minor version (e.g., 8.0 from 8.0-alpine)
-    # Remove suffix after first non-digit/dot character
-    local version_number
-    version_number=$(echo "$version_tag" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | head -n1)
-    
-    # If extraction failed, use fallback
-    if [ -z "$version_number" ] || [[ ! "$version_number" =~ ^[0-9]+\.[0-9]+$ ]]; then
-        export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-valkey-cluster}"
-        return
-    fi
-    
-    # Remove dot to create compact version (8.0 → 80)
-    local compact_version="${version_number//./}"
-    
-    # Set COMPOSE_PROJECT_NAME (only if not already set by user)
-    if [ -z "$COMPOSE_PROJECT_NAME" ] || [ "$COMPOSE_PROJECT_NAME" = "valkey-cluster" ]; then
-        export COMPOSE_PROJECT_NAME="valkey-cluster-${compact_version}"
-    fi
+    printf 'Starting %s with %s on ports %s–%s\n' "$COMPOSE_PROJECT_NAME" "$VALKEY_IMAGE" \
+        "$VALKEY_BASE_PORT" "$((VALKEY_BASE_PORT + 5))"
+    compose up -d
+    client --wait-nodes
+
+    # A PONG alone could come from an unrelated local service or another cluster.
+    local container_id host_id
+    for index in 0 1 2 3 4 5; do
+        container_id=$(compose exec -T "valkey-$index" timeout 10 valkey-cli --raw \
+            -p "$((VALKEY_BASE_PORT + index))" CLUSTER MYID)
+        host_id=$(client --node-id "$((VALKEY_BASE_PORT + index))")
+        if [ "$container_id" != "$host_id" ]; then
+            echo "ERROR: host port $((VALKEY_BASE_PORT + index)) does not reach this project's node" >&2
+            return 1
+        fi
+    done
 }

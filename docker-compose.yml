@@ -1,54 +1,49 @@
+name: ${COMPOSE_PROJECT_NAME:-valkey-cluster}
+
+x-node: &node
+  image: ${VALKEY_IMAGE:-valkey/valkey:7.2.14-alpine}
+  network_mode: host
+  stop_grace_period: 30s
+
 services:
-  valkey-7000:
-    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
-    container_name: valkey-7000
-    network_mode: "host"
-    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
+  valkey-0:
+    <<: *node
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf", "--port", "${PORT_0:-7100}", "--cluster-announce-port", "${PORT_0:-7100}", "--cluster-announce-bus-port", "${BUS_PORT_0:-17100}"]
     volumes:
-      - ./conf/valkey-7000.conf:/usr/local/etc/valkey/valkey.conf
-      - ./data/7000:/data
+      - ./conf/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - ${VALKEY_DATA_DIR:-./data/local}/node-0:/data
 
-  valkey-7001:
-    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
-    container_name: valkey-7001
-    network_mode: "host"
-    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
+  valkey-1:
+    <<: *node
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf", "--port", "${PORT_1:-7101}", "--cluster-announce-port", "${PORT_1:-7101}", "--cluster-announce-bus-port", "${BUS_PORT_1:-17101}"]
     volumes:
-      - ./conf/valkey-7001.conf:/usr/local/etc/valkey/valkey.conf
-      - ./data/7001:/data
+      - ./conf/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - ${VALKEY_DATA_DIR:-./data/local}/node-1:/data
 
-  valkey-7002:
-    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
-    container_name: valkey-7002
-    network_mode: "host"
-    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
+  valkey-2:
+    <<: *node
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf", "--port", "${PORT_2:-7102}", "--cluster-announce-port", "${PORT_2:-7102}", "--cluster-announce-bus-port", "${BUS_PORT_2:-17102}"]
     volumes:
-      - ./conf/valkey-7002.conf:/usr/local/etc/valkey/valkey.conf
-      - ./data/7002:/data
+      - ./conf/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - ${VALKEY_DATA_DIR:-./data/local}/node-2:/data
 
-  valkey-7003:
-    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
-    container_name: valkey-7003
-    network_mode: "host"
-    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
+  valkey-3:
+    <<: *node
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf", "--port", "${PORT_3:-7103}", "--cluster-announce-port", "${PORT_3:-7103}", "--cluster-announce-bus-port", "${BUS_PORT_3:-17103}"]
     volumes:
-      - ./conf/valkey-7003.conf:/usr/local/etc/valkey/valkey.conf
-      - ./data/7003:/data
+      - ./conf/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - ${VALKEY_DATA_DIR:-./data/local}/node-3:/data
 
-  valkey-7004:
-    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
-    container_name: valkey-7004
-    network_mode: "host"
-    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
+  valkey-4:
+    <<: *node
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf", "--port", "${PORT_4:-7104}", "--cluster-announce-port", "${PORT_4:-7104}", "--cluster-announce-bus-port", "${BUS_PORT_4:-17104}"]
     volumes:
-      - ./conf/valkey-7004.conf:/usr/local/etc/valkey/valkey.conf
-      - ./data/7004:/data
+      - ./conf/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - ${VALKEY_DATA_DIR:-./data/local}/node-4:/data
 
-  valkey-7005:
-    image: ${VALKEY_IMAGE:-valkey/valkey:7.2-alpine}
-    container_name: valkey-7005
-    network_mode: "host"
-    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
+  valkey-5:
+    <<: *node
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf", "--port", "${PORT_5:-7105}", "--cluster-announce-port", "${PORT_5:-7105}", "--cluster-announce-bus-port", "${BUS_PORT_5:-17105}"]
     volumes:
-      - ./conf/valkey-7005.conf:/usr/local/etc/valkey/valkey.conf
-      - ./data/7005:/data
+      - ./conf/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - ${VALKEY_DATA_DIR:-./data/local}/node-5:/data
